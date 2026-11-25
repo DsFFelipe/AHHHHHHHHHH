@@ -1,0 +1,190 @@
+`timescale 1ns/1ps
+// Calcula o discriminante e os numeradores das duas raízes da equação.
+module raizes_quadraticas(input wire signed [7:0] a,b,c,
+    output wire signed [17:0] delta, output wire signed [8:0] x1,x2, output wire domain_error);
+    wire signed [15:0] quadrado_coeficiente_b,produto_coeficientes_a_c;
+    wire coeficiente_a_zero,valido,delta_nao_negativo;
+    wire [16:0] radicando;
+    wire [8:0] raiz_quadrada;
+    wire [9:0] resto_quadrado,oposto_coeficiente_b,numerador_positivo,numerador_negativo;
+    wire [7:0] magnitude_coeficiente_a;
+    multiplica_com_sinal_8_por_8 mb(.lhs(b),.rhs(b),.product(quadrado_coeficiente_b));
+    multiplica_com_sinal_8_por_8 mac(.lhs(a),.rhs(c),.product(produto_coeficientes_a_c));
+    subtrator_18 discriminant(.lhs({3'b000,quadrado_coeficiente_b[14:0]}),.rhs({produto_coeficientes_a_c,2'b00}),.difference(delta));
+    nor az(coeficiente_a_zero,a[0],a[1],a[2],a[3],a[4],a[5],a[6],a[7]);
+    // A equação não tem as raízes pedidas quando A é zero ou o discriminante é negativo.
+    or err(domain_error,coeficiente_a_zero,delta[17]);
+    not v(valido,domain_error);
+    not dn(delta_nao_negativo,delta[17]);
+    and rad0(radicando[0],delta[0],delta_nao_negativo);
+    and rad1(radicando[1],delta[1],delta_nao_negativo);
+    and rad2(radicando[2],delta[2],delta_nao_negativo);
+    and rad3(radicando[3],delta[3],delta_nao_negativo);
+    and rad4(radicando[4],delta[4],delta_nao_negativo);
+    and rad5(radicando[5],delta[5],delta_nao_negativo);
+    and rad6(radicando[6],delta[6],delta_nao_negativo);
+    and rad7(radicando[7],delta[7],delta_nao_negativo);
+    and rad8(radicando[8],delta[8],delta_nao_negativo);
+    and rad9(radicando[9],delta[9],delta_nao_negativo);
+    and rad10(radicando[10],delta[10],delta_nao_negativo);
+    and rad11(radicando[11],delta[11],delta_nao_negativo);
+    and rad12(radicando[12],delta[12],delta_nao_negativo);
+    and rad13(radicando[13],delta[13],delta_nao_negativo);
+    and rad14(radicando[14],delta[14],delta_nao_negativo);
+    and rad15(radicando[15],delta[15],delta_nao_negativo);
+    and rad16(radicando[16],delta[16],delta_nao_negativo);
+    // O resto da raiz é mantido até o arredondamento final.
+    raiz_quadrada_17 raiz(.radicand(radicando),.root(raiz_quadrada),.remainder(resto_quadrado));
+    nega_condicional_10 nb(.value({{2{b[7]}},b}),.negate(1'b1),.result(oposto_coeficiente_b));
+    soma_subtrai_10 np(.lhs(oposto_coeficiente_b),.rhs({1'b0,raiz_quadrada}),.subtract(1'b0),.result(numerador_positivo));
+    soma_subtrai_10 nm(.lhs(oposto_coeficiente_b),.rhs({1'b0,raiz_quadrada}),.subtract(1'b1),.result(numerador_negativo));
+    nega_condicional_8 amag(.value(a),.negate(a[7]),.result(magnitude_coeficiente_a));
+    ramo_raizes ramo_mais(.numerator(numerador_positivo),.magnitude_a(magnitude_coeficiente_a),.sign_a(a[7]),.square_remainder(resto_quadrado),.plus_branch(1'b1),.valid(valido),.result(x1));
+    ramo_raizes ramo_negativo(.numerator(numerador_negativo),.magnitude_a(magnitude_coeficiente_a),.sign_a(a[7]),.square_remainder(resto_quadrado),.plus_branch(1'b0),.valid(valido),.result(x2));
+endmodule
+// Calcula uma das raízes e arredonda o resultado mantendo o resto exato.
+module ramo_raizes(input wire [9:0] numerator, input wire [7:0] magnitude_a,
+    input wire sign_a, input wire [9:0] square_remainder, input wire plus_branch,valid,
+    output wire [8:0] result);
+    wire [9:0] magnitude_numerador;
+    wire [8:0] quociente,quociente_arredondado,resultado_com_sinal;
+    wire [7:0] resto;
+    wire divisor_zero,numerador_nao_zero,numerador_positivo,ramo_negativo,correcao_ramo_positivo,correcao_ramo_negativo,correcao_arredondamento;
+    wire resto_nao_zero,quadrado_exato,condicao_arredondamento,arredondar_para_cima,sinal_resultado;
+    // A divisão usa o módulo do numerador, e o sinal é aplicado ao final.
+    nega_condicional_10 modulo_sinalizado(.value(numerator),.negate(numerator[9]),.result(magnitude_numerador));
+    // A magnitude do numerador cabe em nove bits para os coeficientes permitidos.
+    divisor_9_por_8 divide(.dividend(magnitude_numerador[8:0]),.divisor(magnitude_a),.quotient(quociente),.remainder(resto),.divide_by_zero(divisor_zero));
+    or nn(numerador_nao_zero,numerator[0],numerator[1],numerator[2],numerator[3],numerator[4],numerator[5],numerator[6],numerator[7],numerator[8]);
+    wire numerador_nao_negativo;
+    not nns(numerador_nao_negativo,numerator[9]);
+    and np(numerador_positivo,numerador_nao_negativo,numerador_nao_zero);
+    not mb(ramo_negativo,plus_branch);
+    and cp(correcao_ramo_positivo,plus_branch,numerador_positivo);
+    and cm(correcao_ramo_negativo,ramo_negativo,numerator[9]);
+    or co(correcao_arredondamento,correcao_ramo_positivo,correcao_ramo_negativo);
+    or rn(resto_nao_zero,resto[0],resto[1],resto[2],resto[3],resto[4],resto[5],resto[6],resto[7]);
+    nor se(quadrado_exato,square_remainder[0],square_remainder[1],square_remainder[2],square_remainder[3],square_remainder[4],square_remainder[5],square_remainder[6],square_remainder[7],square_remainder[8],square_remainder[9]);
+    // A fração e o resto da raiz definem se o quociente será arredondado.
+    or rc(condicao_arredondamento,resto_nao_zero,quadrado_exato,correcao_arredondamento);
+    and u(arredondar_para_cima,quociente[0],condicao_arredondamento);
+    incrementa_9 arredondamento(.value({1'b0,quociente[8:1]}),.increment(arredondar_para_cima),.result(quociente_arredondado));
+    xor rs(sinal_resultado,numerator[9],sign_a);
+    nega_condicional_9 restore_sign(.value(quociente_arredondado),.negate(sinal_resultado),.result(resultado_com_sinal));
+    and mask0(result[0],resultado_com_sinal[0],valid);
+    and mask1(result[1],resultado_com_sinal[1],valid);
+    and mask2(result[2],resultado_com_sinal[2],valid);
+    and mask3(result[3],resultado_com_sinal[3],valid);
+    and mask4(result[4],resultado_com_sinal[4],valid);
+    and mask5(result[5],resultado_com_sinal[5],valid);
+    and mask6(result[6],resultado_com_sinal[6],valid);
+    and mask7(result[7],resultado_com_sinal[7],valid);
+    and mask8(result[8],resultado_com_sinal[8],valid);
+endmodule
+// Inverte um valor de 8 bits quando o sinal pedido exige isso.
+module nega_condicional_8(input wire [7:0] value,input wire negate,output wire [7:0] result);
+    wire [7:0] valor_invertido;
+    wire [8:0] vai_um;
+    xor x0(valor_invertido[0],value[0],negate);
+    somador_completo somador_bit_0(.a(valor_invertido[0]),.b(1'b0),.cin(negate),.sum(result[0]),.cout(vai_um[1]));
+    xor raiz_x1(valor_invertido[1],value[1],negate);
+    somador_completo somador_bit_1(.a(valor_invertido[1]),.b(1'b0),.cin(vai_um[1]),.sum(result[1]),.cout(vai_um[2]));
+    xor raiz_x2(valor_invertido[2],value[2],negate);
+    somador_completo somador_bit_2(.a(valor_invertido[2]),.b(1'b0),.cin(vai_um[2]),.sum(result[2]),.cout(vai_um[3]));
+    xor x3(valor_invertido[3],value[3],negate);
+    somador_completo somador_bit_3(.a(valor_invertido[3]),.b(1'b0),.cin(vai_um[3]),.sum(result[3]),.cout(vai_um[4]));
+    xor x4(valor_invertido[4],value[4],negate);
+    somador_completo somador_bit_4(.a(valor_invertido[4]),.b(1'b0),.cin(vai_um[4]),.sum(result[4]),.cout(vai_um[5]));
+    xor x5(valor_invertido[5],value[5],negate);
+    somador_completo somador_bit_5(.a(valor_invertido[5]),.b(1'b0),.cin(vai_um[5]),.sum(result[5]),.cout(vai_um[6]));
+    xor x6(valor_invertido[6],value[6],negate);
+    somador_completo somador_bit_6(.a(valor_invertido[6]),.b(1'b0),.cin(vai_um[6]),.sum(result[6]),.cout(vai_um[7]));
+    xor x7(valor_invertido[7],value[7],negate);
+    somador_completo somador_bit_7(.a(valor_invertido[7]),.b(1'b0),.cin(vai_um[7]),.sum(result[7]),.cout(vai_um[8]));
+endmodule
+// Inverte um valor de 9 bits quando o sinal pedido exige isso.
+module nega_condicional_9(input wire [8:0] value,input wire negate,output wire [8:0] result);
+    wire [8:0] valor_invertido;
+    wire [9:0] vai_um;
+    xor x0(valor_invertido[0],value[0],negate);
+    somador_completo somador_bit_0(.a(valor_invertido[0]),.b(1'b0),.cin(negate),.sum(result[0]),.cout(vai_um[1]));
+    xor raiz_x1(valor_invertido[1],value[1],negate);
+    somador_completo somador_bit_1(.a(valor_invertido[1]),.b(1'b0),.cin(vai_um[1]),.sum(result[1]),.cout(vai_um[2]));
+    xor raiz_x2(valor_invertido[2],value[2],negate);
+    somador_completo somador_bit_2(.a(valor_invertido[2]),.b(1'b0),.cin(vai_um[2]),.sum(result[2]),.cout(vai_um[3]));
+    xor x3(valor_invertido[3],value[3],negate);
+    somador_completo somador_bit_3(.a(valor_invertido[3]),.b(1'b0),.cin(vai_um[3]),.sum(result[3]),.cout(vai_um[4]));
+    xor x4(valor_invertido[4],value[4],negate);
+    somador_completo somador_bit_4(.a(valor_invertido[4]),.b(1'b0),.cin(vai_um[4]),.sum(result[4]),.cout(vai_um[5]));
+    xor x5(valor_invertido[5],value[5],negate);
+    somador_completo somador_bit_5(.a(valor_invertido[5]),.b(1'b0),.cin(vai_um[5]),.sum(result[5]),.cout(vai_um[6]));
+    xor x6(valor_invertido[6],value[6],negate);
+    somador_completo somador_bit_6(.a(valor_invertido[6]),.b(1'b0),.cin(vai_um[6]),.sum(result[6]),.cout(vai_um[7]));
+    xor x7(valor_invertido[7],value[7],negate);
+    somador_completo somador_bit_7(.a(valor_invertido[7]),.b(1'b0),.cin(vai_um[7]),.sum(result[7]),.cout(vai_um[8]));
+    xor x8(valor_invertido[8],value[8],negate);
+    somador_completo somador_bit_8(.a(valor_invertido[8]),.b(1'b0),.cin(vai_um[8]),.sum(result[8]),.cout(vai_um[9]));
+endmodule
+// Inverte um valor de 10 bits quando o sinal pedido exige isso.
+module nega_condicional_10(input wire [9:0] value,input wire negate,output wire [9:0] result);
+    wire [9:0] valor_invertido;
+    wire [10:0] vai_um;
+    xor x0(valor_invertido[0],value[0],negate);
+    somador_completo somador_bit_0(.a(valor_invertido[0]),.b(1'b0),.cin(negate),.sum(result[0]),.cout(vai_um[1]));
+    xor raiz_x1(valor_invertido[1],value[1],negate);
+    somador_completo somador_bit_1(.a(valor_invertido[1]),.b(1'b0),.cin(vai_um[1]),.sum(result[1]),.cout(vai_um[2]));
+    xor raiz_x2(valor_invertido[2],value[2],negate);
+    somador_completo somador_bit_2(.a(valor_invertido[2]),.b(1'b0),.cin(vai_um[2]),.sum(result[2]),.cout(vai_um[3]));
+    xor x3(valor_invertido[3],value[3],negate);
+    somador_completo somador_bit_3(.a(valor_invertido[3]),.b(1'b0),.cin(vai_um[3]),.sum(result[3]),.cout(vai_um[4]));
+    xor x4(valor_invertido[4],value[4],negate);
+    somador_completo somador_bit_4(.a(valor_invertido[4]),.b(1'b0),.cin(vai_um[4]),.sum(result[4]),.cout(vai_um[5]));
+    xor x5(valor_invertido[5],value[5],negate);
+    somador_completo somador_bit_5(.a(valor_invertido[5]),.b(1'b0),.cin(vai_um[5]),.sum(result[5]),.cout(vai_um[6]));
+    xor x6(valor_invertido[6],value[6],negate);
+    somador_completo somador_bit_6(.a(valor_invertido[6]),.b(1'b0),.cin(vai_um[6]),.sum(result[6]),.cout(vai_um[7]));
+    xor x7(valor_invertido[7],value[7],negate);
+    somador_completo somador_bit_7(.a(valor_invertido[7]),.b(1'b0),.cin(vai_um[7]),.sum(result[7]),.cout(vai_um[8]));
+    xor x8(valor_invertido[8],value[8],negate);
+    somador_completo somador_bit_8(.a(valor_invertido[8]),.b(1'b0),.cin(vai_um[8]),.sum(result[8]),.cout(vai_um[9]));
+    xor x9(valor_invertido[9],value[9],negate);
+    somador_completo somador_bit_9(.a(valor_invertido[9]),.b(1'b0),.cin(vai_um[9]),.sum(result[9]),.cout(vai_um[10]));
+endmodule
+// Soma ou subtrai dois valores de 10 bits conforme o sinal de controle.
+module soma_subtrai_10(input wire [9:0] lhs,rhs,input wire subtract,output wire [9:0] result);
+    wire [9:0] valor_invertido;
+    wire [10:0] vai_um;
+    xor x0(valor_invertido[0],rhs[0],subtract);
+    somador_completo somador_bit_0(.a(lhs[0]),.b(valor_invertido[0]),.cin(subtract),.sum(result[0]),.cout(vai_um[1]));
+    xor raiz_x1(valor_invertido[1],rhs[1],subtract);
+    somador_completo somador_bit_1(.a(lhs[1]),.b(valor_invertido[1]),.cin(vai_um[1]),.sum(result[1]),.cout(vai_um[2]));
+    xor raiz_x2(valor_invertido[2],rhs[2],subtract);
+    somador_completo somador_bit_2(.a(lhs[2]),.b(valor_invertido[2]),.cin(vai_um[2]),.sum(result[2]),.cout(vai_um[3]));
+    xor x3(valor_invertido[3],rhs[3],subtract);
+    somador_completo somador_bit_3(.a(lhs[3]),.b(valor_invertido[3]),.cin(vai_um[3]),.sum(result[3]),.cout(vai_um[4]));
+    xor x4(valor_invertido[4],rhs[4],subtract);
+    somador_completo somador_bit_4(.a(lhs[4]),.b(valor_invertido[4]),.cin(vai_um[4]),.sum(result[4]),.cout(vai_um[5]));
+    xor x5(valor_invertido[5],rhs[5],subtract);
+    somador_completo somador_bit_5(.a(lhs[5]),.b(valor_invertido[5]),.cin(vai_um[5]),.sum(result[5]),.cout(vai_um[6]));
+    xor x6(valor_invertido[6],rhs[6],subtract);
+    somador_completo somador_bit_6(.a(lhs[6]),.b(valor_invertido[6]),.cin(vai_um[6]),.sum(result[6]),.cout(vai_um[7]));
+    xor x7(valor_invertido[7],rhs[7],subtract);
+    somador_completo somador_bit_7(.a(lhs[7]),.b(valor_invertido[7]),.cin(vai_um[7]),.sum(result[7]),.cout(vai_um[8]));
+    xor x8(valor_invertido[8],rhs[8],subtract);
+    somador_completo somador_bit_8(.a(lhs[8]),.b(valor_invertido[8]),.cin(vai_um[8]),.sum(result[8]),.cout(vai_um[9]));
+    xor x9(valor_invertido[9],rhs[9],subtract);
+    somador_completo somador_bit_9(.a(lhs[9]),.b(valor_invertido[9]),.cin(vai_um[9]),.sum(result[9]),.cout(vai_um[10]));
+endmodule
+// Soma um ao valor de 9 bits quando o controle está ligado.
+module incrementa_9(input wire [8:0] value,input wire increment,output wire [8:0] result);
+    wire [9:0] vai_um;
+    somador_completo somador_bit_0(.a(value[0]),.b(1'b0),.cin(increment),.sum(result[0]),.cout(vai_um[1]));
+    somador_completo somador_bit_1(.a(value[1]),.b(1'b0),.cin(vai_um[1]),.sum(result[1]),.cout(vai_um[2]));
+    somador_completo somador_bit_2(.a(value[2]),.b(1'b0),.cin(vai_um[2]),.sum(result[2]),.cout(vai_um[3]));
+    somador_completo somador_bit_3(.a(value[3]),.b(1'b0),.cin(vai_um[3]),.sum(result[3]),.cout(vai_um[4]));
+    somador_completo somador_bit_4(.a(value[4]),.b(1'b0),.cin(vai_um[4]),.sum(result[4]),.cout(vai_um[5]));
+    somador_completo somador_bit_5(.a(value[5]),.b(1'b0),.cin(vai_um[5]),.sum(result[5]),.cout(vai_um[6]));
+    somador_completo somador_bit_6(.a(value[6]),.b(1'b0),.cin(vai_um[6]),.sum(result[6]),.cout(vai_um[7]));
+    somador_completo somador_bit_7(.a(value[7]),.b(1'b0),.cin(vai_um[7]),.sum(result[7]),.cout(vai_um[8]));
+    somador_completo somador_bit_8(.a(value[8]),.b(1'b0),.cin(vai_um[8]),.sum(result[8]),.cout(vai_um[9]));
+endmodule
